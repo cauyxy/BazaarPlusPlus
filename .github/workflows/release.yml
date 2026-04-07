@@ -1,0 +1,64 @@
+name: "Release"
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: install frontend dependencies
+        working-directory: bazaarplusplus-installer
+        run: npm install
+
+      - name: build tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__ # tauri-action replaces this with the app version
+          releaseName: "BazaarPlusPlus v__VERSION__"
+          releaseBody: "See the assets below to download the latest version of BazaarPlusPlus Installer."
+          releaseDraft: true
+          prerelease: false
+          args: "--project bazaarplusplus-installer"
+
+      - name: Fix macOS Signing (ARM64)
+        if: matrix.platform == 'macos-latest'
+        run: |
+          # 查找生成的 .app 和 .dmg 路径
+          # 因为 tauri-action 默认会将输出放在 src-tauri/target/release/bundle
+          APP_PATH=$(find bazaarplusplus-installer/src-tauri/target/release/bundle/macos -name "*.app" | head -n 1)
+          if [ -d "$APP_PATH" ]; then
+            echo "Signing $APP_PATH..."
+            # 使用 Ad-hoc 签名彻底杜绝 M1 下的损坏报错
+            codesign --force --deep --sign - "$APP_PATH"
+          fi
+          # 注意：如果是 DMG，用户挂载后拖入 /Applications 仍可能需要手动 codesign .app，
+          # 但在 CI 中对 .app 预签名通常能解决大部分直接打开损坏的问题。
