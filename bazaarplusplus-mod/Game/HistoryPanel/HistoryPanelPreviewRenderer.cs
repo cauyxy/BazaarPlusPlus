@@ -1,14 +1,21 @@
 #nullable enable
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using BazaarPlusPlus;
-using BazaarPlusPlus.Game.MonsterPreview;
 using BazaarPlusPlus.Game.PreviewSurface;
 using UnityEngine;
 using Object = UnityEngine.Object;
+using BoardPose = BazaarPlusPlus.Game.MonsterPreview.BoardPose;
+using BoardRenderModel = BazaarPlusPlus.Game.MonsterPreview.BoardRenderModel;
+using MonsterBoardModel = BazaarPlusPlus.Game.MonsterPreview.PreviewBoardModel;
+using MonsterPreviewDefaults = BazaarPlusPlus.Game.MonsterPreview.MonsterPreviewDefaults;
+using PreviewBoardDebugOptions = BazaarPlusPlus.Game.MonsterPreview.PreviewBoardDebugOptions;
+using MonsterBoardPresentation = BazaarPlusPlus.Game.MonsterPreview.PreviewBoardPresentation;
+using MonsterCardSpec = BazaarPlusPlus.Game.MonsterPreview.PreviewCardSpec;
 
 namespace BazaarPlusPlus.Game.HistoryPanel;
 
@@ -494,8 +501,8 @@ internal sealed class HistoryPanelPreviewRenderer
         return renderTarget.QueueRenderAsync(
             new BoardRenderModel
             {
-                Data = model,
-                Presentation = ClonePresentation(presentation),
+                Data = ToMonsterBoardModel(model),
+                Presentation = ToMonsterPresentation(presentation),
                 Debug = new PreviewBoardDebugOptions(),
                 Pose = new BoardPose
                 {
@@ -508,7 +515,9 @@ internal sealed class HistoryPanelPreviewRenderer
 
     private PreviewBoardPresentation CreatePresentation()
     {
-        var presentation = MonsterPreviewDefaults.CreateShowcasePresentation();
+        var presentation = ToPreviewSurfacePresentation(
+            MonsterPreviewDefaults.CreateShowcasePresentation()
+        );
         presentation.ShowSkillBoard = HistoryPanelPreviewSettings.ShowSkillBoard;
         presentation.ShowBrandingBoard = HistoryPanelPreviewSettings.ShowBrandingBoard;
         presentation.ShowMonsterInfoBoard = HistoryPanelPreviewSettings.ShowMonsterInfoBoard;
@@ -546,6 +555,97 @@ internal sealed class HistoryPanelPreviewRenderer
             BorderThickness = source.BorderThickness,
             BorderHeight = source.BorderHeight,
         };
+    }
+
+    private static MonsterBoardPresentation ToMonsterPresentation(PreviewBoardPresentation source)
+    {
+        return new MonsterBoardPresentation
+        {
+            Visible = source.Visible,
+            DebugEnabled = source.DebugEnabled,
+            ShowSkillBoard = source.ShowSkillBoard,
+            ShowBrandingBoard = source.ShowBrandingBoard,
+            ShowMonsterInfoBoard = source.ShowMonsterInfoBoard,
+            ShowItemBoardFill = source.ShowItemBoardFill,
+            LocalOffset = source.LocalOffset,
+            CardScale = source.CardScale,
+            CardSpacing = source.CardSpacing,
+            BoardSize = source.BoardSize,
+            SkillBoardWidth = source.SkillBoardWidth,
+            BoardThickness = source.BoardThickness,
+            BorderThickness = source.BorderThickness,
+            BorderHeight = source.BorderHeight,
+        };
+    }
+
+    private static PreviewBoardPresentation ToPreviewSurfacePresentation(
+        MonsterBoardPresentation source
+    )
+    {
+        return new PreviewBoardPresentation
+        {
+            Visible = source.Visible,
+            DebugEnabled = source.DebugEnabled,
+            ShowSkillBoard = source.ShowSkillBoard,
+            ShowBrandingBoard = source.ShowBrandingBoard,
+            ShowMonsterInfoBoard = source.ShowMonsterInfoBoard,
+            ShowItemBoardFill = source.ShowItemBoardFill,
+            LocalOffset = source.LocalOffset,
+            CardScale = source.CardScale,
+            CardSpacing = source.CardSpacing,
+            BoardSize = source.BoardSize,
+            SkillBoardWidth = source.SkillBoardWidth,
+            BoardThickness = source.BoardThickness,
+            BorderThickness = source.BorderThickness,
+            BorderHeight = source.BorderHeight,
+        };
+    }
+
+    private static MonsterBoardModel ToMonsterBoardModel(PreviewBoardModel source)
+    {
+        return new MonsterBoardModel
+        {
+            Title = source.Title,
+            Signature = source.Signature,
+            Metadata =
+                source.Metadata != null
+                    ? new Dictionary<string, string>(source.Metadata)
+                    : new Dictionary<string, string>(),
+            ItemCards = ToMonsterCards(source.ItemCards),
+            SkillCards = ToMonsterCards(source.SkillCards),
+        };
+    }
+
+    private static List<MonsterCardSpec> ToMonsterCards(
+        IReadOnlyList<PreviewCardSpec> sourceCards
+    )
+    {
+        var cards = new List<MonsterCardSpec>();
+        if (sourceCards == null)
+            return cards;
+
+        foreach (var card in sourceCards)
+        {
+            if (card == null)
+                continue;
+
+            cards.Add(
+                new MonsterCardSpec
+                {
+                    TemplateId = card.TemplateId,
+                    SourceName = card.SourceName,
+                    Tier = card.Tier,
+                    Size = card.Size,
+                    Enchant = card.Enchant,
+                    Attributes =
+                        card.Attributes != null
+                            ? new Dictionary<int, int>(card.Attributes)
+                            : new Dictionary<int, int>(),
+                }
+            );
+        }
+
+        return cards;
     }
 
     private static void ApplyLayerRecursively(Transform? root, int layer)

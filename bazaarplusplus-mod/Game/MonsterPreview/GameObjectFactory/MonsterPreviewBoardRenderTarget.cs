@@ -20,6 +20,8 @@ internal sealed class MonsterPreviewBoardRenderTarget : IBoardRenderTarget
         );
     }
 
+    public bool IsAlive => _board != null && _board.IsAlive;
+
     public void Dispose()
     {
         _renderGate.MarkDisposed();

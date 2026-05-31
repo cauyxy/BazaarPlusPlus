@@ -8,6 +8,7 @@ using BazaarGameClient.Domain.Models.Cards;
 using BazaarGameShared.Domain.Cards;
 using BazaarGameShared.Domain.Core;
 using BazaarGameShared.Domain.Core.Types;
+using BazaarPlusPlus.Game.PreviewSurface;
 using TheBazaar;
 using TheBazaar.AppFramework;
 using UnityEngine;

@@ -20,6 +20,7 @@ internal sealed class BppComposition : IDisposable
     private readonly InMemoryBppEventBus _eventBus = new();
     private readonly BppConfig _config = new();
     private readonly BppPathService _paths = new();
+    private readonly MonsterDatabase _monsterCatalog = new();
     private readonly RunContextStore _runContext = new();
     private readonly GameStateProbe _gameStateProbe = new();
     private readonly BppRuntimeServices _services;
@@ -40,6 +41,7 @@ internal sealed class BppComposition : IDisposable
 
         _config.Initialize(configFile);
         _paths.Initialize();
+        _monsterCatalog.Initialize();
         _runContext.Reset();
 
         _services = new BppRuntimeServices(
@@ -48,6 +50,7 @@ internal sealed class BppComposition : IDisposable
             _paths,
             _runContext,
             _gameStateProbe,
+            _monsterCatalog,
             logger
         );
 

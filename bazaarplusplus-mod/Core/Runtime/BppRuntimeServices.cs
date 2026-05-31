@@ -17,6 +17,7 @@ internal sealed class BppRuntimeServices : IBppServices
         IPathService paths,
         IRunContext runContext,
         IGameStateProbe gameStateProbe,
+        IMonsterCatalog monsterCatalog,
         ManualLogSource logger
     )
     {
@@ -25,6 +26,7 @@ internal sealed class BppRuntimeServices : IBppServices
         Paths = paths ?? throw new ArgumentNullException(nameof(paths));
         RunContext = runContext ?? throw new ArgumentNullException(nameof(runContext));
         GameStateProbe = gameStateProbe ?? throw new ArgumentNullException(nameof(gameStateProbe));
+        MonsterCatalog = monsterCatalog ?? throw new ArgumentNullException(nameof(monsterCatalog));
         Logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -33,5 +35,6 @@ internal sealed class BppRuntimeServices : IBppServices
     public IPathService Paths { get; }
     public IRunContext RunContext { get; }
     public IGameStateProbe GameStateProbe { get; }
+    public IMonsterCatalog MonsterCatalog { get; }
     public ManualLogSource Logger { get; }
 }

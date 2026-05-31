@@ -3,6 +3,9 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using BazaarPlusPlus.Game.MonsterPreview;
+using MonsterBoardModel = BazaarPlusPlus.Game.MonsterPreview.PreviewBoardModel;
+using MonsterBoardPresentation = BazaarPlusPlus.Game.MonsterPreview.PreviewBoardPresentation;
+using MonsterCardSpec = BazaarPlusPlus.Game.MonsterPreview.PreviewCardSpec;
 
 namespace BazaarPlusPlus.Game.PreviewSurface;
 
@@ -117,7 +120,7 @@ internal sealed class PreviewBoardRenderTarget : IBoardRenderTarget, IDisposable
             if (_disposed || !_surface.IsAlive || cancellationToken.IsCancellationRequested)
                 return;
 
-            var presentation = renderModel.Presentation ?? new PreviewBoardPresentation();
+            var presentation = ToPreviewSurfacePresentation(renderModel.Presentation);
             var pose = renderModel.Pose ?? new BoardPose();
             _surface.SetPresentation(presentation);
             _surface.SetDebugOptions(renderModel.Debug ?? new PreviewBoardDebugOptions());
@@ -136,7 +139,7 @@ internal sealed class PreviewBoardRenderTarget : IBoardRenderTarget, IDisposable
                 $"RenderSurfaceAsync start signature={renderModel.Data?.Signature ?? string.Empty} pose={pose.Position}"
             );
             await _surface.RenderAsync(
-                renderModel.Data ?? new PreviewBoardModel(),
+                ToPreviewSurfaceModel(renderModel.Data),
                 cancellationToken
             );
             LogInfo(
@@ -165,6 +168,78 @@ internal sealed class PreviewBoardRenderTarget : IBoardRenderTarget, IDisposable
         _surface.SetVisible(visible);
         LogDebug($"ApplyVisibilityAsync visible={visible}");
         return Task.CompletedTask;
+    }
+
+    private static PreviewBoardPresentation ToPreviewSurfacePresentation(
+        MonsterBoardPresentation presentation
+    )
+    {
+        presentation ??= new MonsterBoardPresentation();
+        return new PreviewBoardPresentation
+        {
+            Visible = presentation.Visible,
+            DebugEnabled = presentation.DebugEnabled,
+            ShowSkillBoard = presentation.ShowSkillBoard,
+            ShowBrandingBoard = presentation.ShowBrandingBoard,
+            ShowMonsterInfoBoard = presentation.ShowMonsterInfoBoard,
+            ShowItemBoardFill = presentation.ShowItemBoardFill,
+            LocalOffset = presentation.LocalOffset,
+            CardScale = presentation.CardScale,
+            CardSpacing = presentation.CardSpacing,
+            BoardSize = presentation.BoardSize,
+            SkillBoardWidth = presentation.SkillBoardWidth,
+            BoardThickness = presentation.BoardThickness,
+            BorderThickness = presentation.BorderThickness,
+            BorderHeight = presentation.BorderHeight,
+        };
+    }
+
+    private static PreviewBoardModel ToPreviewSurfaceModel(MonsterBoardModel? model)
+    {
+        model ??= new MonsterBoardModel();
+        return new PreviewBoardModel
+        {
+            Title = model.Title,
+            Signature = model.Signature,
+            Metadata =
+                model.Metadata != null
+                    ? new System.Collections.Generic.Dictionary<string, string>(model.Metadata)
+                    : new System.Collections.Generic.Dictionary<string, string>(),
+            ItemCards = ToPreviewSurfaceCards(model.ItemCards),
+            SkillCards = ToPreviewSurfaceCards(model.SkillCards),
+        };
+    }
+
+    private static System.Collections.Generic.List<PreviewCardSpec> ToPreviewSurfaceCards(
+        System.Collections.Generic.IReadOnlyList<MonsterCardSpec> sourceCards
+    )
+    {
+        var cards = new System.Collections.Generic.List<PreviewCardSpec>();
+        if (sourceCards == null)
+            return cards;
+
+        foreach (var card in sourceCards)
+        {
+            if (card == null)
+                continue;
+
+            cards.Add(
+                new PreviewCardSpec
+                {
+                    TemplateId = card.TemplateId,
+                    SourceName = card.SourceName,
+                    Tier = card.Tier,
+                    Size = card.Size,
+                    Enchant = card.Enchant,
+                    Attributes =
+                        card.Attributes != null
+                            ? new System.Collections.Generic.Dictionary<int, int>(card.Attributes)
+                            : new System.Collections.Generic.Dictionary<int, int>(),
+                }
+            );
+        }
+
+        return cards;
     }
 
     private Task EnqueueSurfaceWorkAsync(Func<Task> work)

@@ -15,5 +15,6 @@ internal interface IBppServices
     IPathService Paths { get; }
     IRunContext RunContext { get; }
     IGameStateProbe GameStateProbe { get; }
+    IMonsterCatalog MonsterCatalog { get; }
     ManualLogSource Logger { get; }
 }

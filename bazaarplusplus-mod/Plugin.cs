@@ -48,6 +48,7 @@ public class Plugin : BaseUnityPlugin
 
             var services = _composition.Services;
             BppLog.Install(services.Logger);
+            BppRuntimeHost.Install(services);
             BppPatchHost.Install(services);
 
             InstallStaticUtilities(services);
@@ -86,6 +87,7 @@ public class Plugin : BaseUnityPlugin
         finally
         {
             BppLog.Flush();
+            BppRuntimeHost.Reset();
             BppPatchHost.Reset();
         }
     }

@@ -1,7 +1,8 @@
 #nullable enable
 using System.Collections.Generic;
-using BazaarPlusPlus.Game.MonsterPreview;
 using BazaarPlusPlus.Game.PreviewSurface;
+using PreviewBoardModel = BazaarPlusPlus.Game.PreviewSurface.PreviewBoardModel;
+using PreviewCardSpec = BazaarPlusPlus.Game.PreviewSurface.PreviewCardSpec;
 
 namespace BazaarPlusPlus.Game.HistoryPanel;
 

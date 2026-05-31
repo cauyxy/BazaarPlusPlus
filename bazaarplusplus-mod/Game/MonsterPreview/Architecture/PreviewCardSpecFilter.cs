@@ -6,6 +6,11 @@ namespace BazaarPlusPlus.Game.MonsterPreview;
 
 internal static class PreviewCardSpecFilter
 {
+    public static List<PreviewCardSpec> FilterLocallyRenderable(IEnumerable<PreviewCardSpec> specs)
+    {
+        return Filter(specs, LocalCardTemplateCatalog.Contains);
+    }
+
     internal static List<PreviewCardSpec> Filter(
         IEnumerable<PreviewCardSpec> specs,
         Func<Guid, bool> hasTemplate

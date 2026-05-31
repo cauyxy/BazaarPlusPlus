@@ -15,6 +15,8 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Serialization;
 using TheBazaar;
+using SurfaceBoardModel = BazaarPlusPlus.Game.PreviewSurface.PreviewBoardModel;
+using SurfaceCardSpec = BazaarPlusPlus.Game.PreviewSurface.PreviewCardSpec;
 
 namespace BazaarPlusPlus.Game.HistoryPanel;
 
@@ -61,17 +63,17 @@ internal sealed partial class HistoryPanelRepository
     internal static HistoryBattlePreviewData BuildEmptyPreviewData()
     {
         return new HistoryBattlePreviewData(
-            new PreviewBoardModel
+            new SurfaceBoardModel
             {
-                ItemCards = new List<PreviewCardSpec>(),
-                SkillCards = new List<PreviewCardSpec>(),
+                ItemCards = new List<SurfaceCardSpec>(),
+                SkillCards = new List<SurfaceCardSpec>(),
                 Metadata = new Dictionary<string, string>(),
                 Signature = string.Empty,
             },
-            new PreviewBoardModel
+            new SurfaceBoardModel
             {
-                ItemCards = new List<PreviewCardSpec>(),
-                SkillCards = new List<PreviewCardSpec>(),
+                ItemCards = new List<SurfaceCardSpec>(),
+                SkillCards = new List<SurfaceCardSpec>(),
                 Metadata = new Dictionary<string, string>(),
                 Signature = string.Empty,
             }
@@ -103,7 +105,7 @@ internal sealed partial class HistoryPanelRepository
         );
     }
 
-    private static PreviewBoardModel BuildPreviewBoard(
+    private static SurfaceBoardModel BuildPreviewBoard(
         PvpBattleCardSetCapture itemCapture,
         PvpBattleCardSetCapture skillCapture
     )
@@ -111,29 +113,29 @@ internal sealed partial class HistoryPanelRepository
         var itemSnapshots = itemCapture?.Items;
         var socketEffectsBySocket = BuildSocketEffectMap(itemSnapshots);
         var staticData = TryGetStaticGameData();
-        var model = new PreviewBoardModel
+        var model = new SurfaceBoardModel
         {
-            ItemCards = PreviewCardSpecFilter.Filter(
+            ItemCards = FilterPreviewSurfaceSpecs(
                 BuildPreviewCardSpecs(itemSnapshots, isSkill: false, socketEffectsBySocket),
                 templateId => HasStaticCardTemplate(staticData, templateId)
             ),
-            SkillCards = PreviewCardSpecFilter.Filter(
+            SkillCards = FilterPreviewSurfaceSpecs(
                 BuildPreviewCardSpecs(skillCapture?.Items, isSkill: true, null),
                 templateId => HasStaticCardTemplate(staticData, templateId)
             ),
             Metadata = new Dictionary<string, string>(),
         };
-        model.Signature = PreviewBoardSignature.Build(model);
+        model.Signature = BuildPreviewSurfaceSignature(model);
         return model;
     }
 
-    private static List<PreviewCardSpec> BuildPreviewCardSpecs(
+    private static List<SurfaceCardSpec> BuildPreviewCardSpecs(
         IEnumerable<CombatReplayCardSnapshot>? snapshots,
         bool isSkill,
         IReadOnlyDictionary<EContainerSocketId, HashSet<ECardAttributeType>>? socketEffectsBySocket
     )
     {
-        var specs = new List<PreviewCardSpec>();
+        var specs = new List<SurfaceCardSpec>();
         if (snapshots == null)
             return specs;
 
@@ -161,7 +163,7 @@ internal sealed partial class HistoryPanelRepository
         return specs;
     }
 
-    private static PreviewCardSpec? BuildPreviewCardSpec(
+    private static SurfaceCardSpec? BuildPreviewCardSpec(
         CombatReplayCardSnapshot snapshot,
         bool isSkill,
         IReadOnlyDictionary<EContainerSocketId, HashSet<ECardAttributeType>>? socketEffectsBySocket
@@ -199,7 +201,7 @@ internal sealed partial class HistoryPanelRepository
         if (!isSkill)
             ApplySocketEffectAttributes(snapshot, attributes, socketEffectsBySocket);
 
-        return new PreviewCardSpec
+        return new SurfaceCardSpec
         {
             TemplateId = snapshot.TemplateId,
             SourceName = snapshot.Name ?? string.Empty,
@@ -428,5 +430,81 @@ internal sealed partial class HistoryPanelRepository
     private static int CountSnapshotItems(PvpBattleCardSetCapture? capture)
     {
         return capture?.Items?.Count ?? 0;
+    }
+
+    private static List<SurfaceCardSpec> FilterPreviewSurfaceSpecs(
+        IEnumerable<SurfaceCardSpec> specs,
+        Func<Guid, bool> hasTemplate
+    )
+    {
+        var filtered = new List<SurfaceCardSpec>();
+        if (specs == null || hasTemplate == null)
+            return filtered;
+
+        foreach (var spec in specs)
+        {
+            if (spec == null || string.IsNullOrWhiteSpace(spec.TemplateId))
+                continue;
+
+            if (!Guid.TryParse(spec.TemplateId, out var templateId))
+                continue;
+
+            if (!hasTemplate(templateId))
+                continue;
+
+            filtered.Add(
+                new SurfaceCardSpec
+                {
+                    TemplateId = spec.TemplateId,
+                    SourceName = spec.SourceName ?? string.Empty,
+                    Tier = spec.Tier,
+                    Size = spec.Size <= 0 ? 1 : spec.Size,
+                    Enchant = string.IsNullOrWhiteSpace(spec.Enchant) ? "None" : spec.Enchant,
+                    Attributes =
+                        spec.Attributes != null
+                            ? new Dictionary<int, int>(spec.Attributes)
+                            : new Dictionary<int, int>(),
+                }
+            );
+        }
+
+        return filtered;
+    }
+
+    private static string BuildPreviewSurfaceSignature(SurfaceBoardModel model)
+    {
+        if (model == null)
+            return string.Empty;
+
+        var itemCards = string.Join("|", model.ItemCards.Select(BuildCardSignature));
+        var skillCards = string.Join("|", model.SkillCards.Select(BuildCardSignature));
+        var metadata = string.Join(
+            "|",
+            model.Metadata.OrderBy(entry => entry.Key).Select(entry => $"{entry.Key}={entry.Value}")
+        );
+
+        return string.Join("::", model.Title ?? string.Empty, itemCards, skillCards, metadata);
+    }
+
+    private static string BuildCardSignature(SurfaceCardSpec card)
+    {
+        if (card == null)
+            return string.Empty;
+
+        var attributes = string.Join(
+            ",",
+            card.Attributes.OrderBy(entry => entry.Key)
+                .Select(entry => $"{entry.Key}:{entry.Value}")
+        );
+
+        return string.Join(
+            ";",
+            card.TemplateId ?? string.Empty,
+            card.SourceName ?? string.Empty,
+            card.Tier.ToString(),
+            card.Size.ToString(),
+            card.Enchant ?? "None",
+            attributes
+        );
     }
 }

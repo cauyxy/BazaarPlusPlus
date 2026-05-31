@@ -1,5 +1,6 @@
 #nullable enable
 
+using System;
 using BazaarPlusPlus.Core.Config;
 
 namespace BazaarPlusPlus.Game.Online;

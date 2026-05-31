@@ -570,7 +570,7 @@ internal sealed partial class CombatReplayRuntime : MonoBehaviour
         GameSimHandler gameSimHandler
     )
     {
-        return async spawnMessage =>
+        return spawnMessage =>
         {
             if (!processor.Handle(spawnMessage))
                 throw new InvalidOperationException(
@@ -579,6 +579,7 @@ internal sealed partial class CombatReplayRuntime : MonoBehaviour
 
             Data.UpdateFromGameSimAsync(spawnMessage);
             MarkGameSimMessageHandled(gameSimHandler, spawnMessage.MessageId);
+            return Task.CompletedTask;
         };
     }
 
