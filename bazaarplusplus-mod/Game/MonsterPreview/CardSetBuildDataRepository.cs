@@ -6,23 +6,24 @@ using System.Linq;
 using System.Net.Http;
 using System.Reflection;
 using System.Threading.Tasks;
-    using BazaarGameShared.Domain.Cards.Enchantments;
-    using BazaarGameShared.Domain.Core.Types;
-    using BazaarPlusPlus.Core.Config;
-    using BazaarPlusPlus.Game.ItemBoard;
+using BazaarGameShared.Domain.Cards.Enchantments;
+using BazaarGameShared.Domain.Core.Types;
+using BazaarPlusPlus.Core.Config;
+using BazaarPlusPlus.Game.ItemBoard;
 using BazaarPlusPlus.Game.Settings;
 using Newtonsoft.Json;
 using TheBazaar;
-using UnityEngine;
 
 namespace BazaarPlusPlus.Game.MonsterPreview;
 
 internal sealed class CardSetBuildDataRepository
 {
     private const string DefaultFinalBuildsRemoteUrl =
+        "https://bpp-metrics.bazaarplusplus.com/final_builds/1d/all.json";
+    private const string LegacyPlaceholderFinalBuildsRemoteUrl =
         "https://api.example.com/final_builds_for_mod.json";
     private const string FinalBuildsResourceSuffix = "final-builds-top50.json";
-    private const string FinalBuildsCacheFileName = "final_builds_for_mod.json";
+    private const string FinalBuildsCacheFileName = "final_builds_v2_1d_all.json";
     private static readonly LocalizedTextSet FinalBuildLabel = new(
         "Ten-Win Build",
         "十胜阵容",
@@ -42,6 +43,7 @@ internal sealed class CardSetBuildDataRepository
     private static Func<DateTime> _utcNow = () => DateTime.UtcNow;
     private static Func<string, string> _downloadFinalBuildJson = DownloadFinalBuildJson;
     private static Action<Action> _queueBackgroundFinalBuildRefresh = QueueBackgroundFinalBuildRefresh;
+    private static Func<string> _resolveLanguageCode = ResolveGameLanguageCode;
     private static bool _backgroundFinalBuildRefreshInProgress;
 
     public bool TryFindFinalRecommendation(
@@ -296,16 +298,21 @@ internal sealed class CardSetBuildDataRepository
         try
         {
             var parsed = JsonConvert.DeserializeObject<FinalBuildRoot>(json);
-            if (parsed?.Heroes == null)
+            if (parsed?.Heroes != null)
+                return parsed;
+
+            var metricsRoot = JsonConvert.DeserializeObject<MetricsFinalBuildRoot>(json);
+            var converted = ConvertMetricsRoot(metricsRoot);
+            if (converted?.Heroes == null)
             {
                 BppLog.Warn(
                     "CardSetBuildDataRepository",
-                    $"Final builds JSON from {source} did not contain heroes."
+                    $"Final builds JSON from {source} did not contain a supported final build schema."
                 );
                 return null;
             }
 
-            return parsed;
+            return converted;
         }
         catch (Exception ex)
         {
@@ -349,7 +356,14 @@ internal sealed class CardSetBuildDataRepository
         if (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp)
             return DefaultFinalBuildsRemoteUrl;
 
-        return uri.ToString();
+        var resolved = uri.ToString();
+        return string.Equals(
+            resolved,
+            LegacyPlaceholderFinalBuildsRemoteUrl,
+            StringComparison.OrdinalIgnoreCase
+        )
+            ? DefaultFinalBuildsRemoteUrl
+            : resolved;
     }
 
     private static string ResolveFinalBuildsCacheFilePath()
@@ -388,6 +402,7 @@ internal sealed class CardSetBuildDataRepository
             _utcNow = utcNow;
             _downloadFinalBuildJson = downloadJson;
             _queueBackgroundFinalBuildRefresh = QueueBackgroundFinalBuildRefresh;
+            _resolveLanguageCode = ResolveGameLanguageCode;
         }
     }
 
@@ -395,7 +410,8 @@ internal sealed class CardSetBuildDataRepository
         string cacheFilePath,
         Func<DateTime> utcNow,
         Func<string, string> downloadJson,
-        Action<Action> queueBackgroundRefresh
+        Action<Action> queueBackgroundRefresh,
+        Func<string> resolveLanguageCode
     )
     {
         lock (SyncRoot)
@@ -408,6 +424,7 @@ internal sealed class CardSetBuildDataRepository
             _downloadFinalBuildJson = downloadJson;
             _queueBackgroundFinalBuildRefresh =
                 queueBackgroundRefresh ?? QueueBackgroundFinalBuildRefresh;
+            _resolveLanguageCode = resolveLanguageCode ?? ResolveGameLanguageCode;
         }
     }
 
@@ -422,6 +439,7 @@ internal sealed class CardSetBuildDataRepository
             _utcNow = () => DateTime.UtcNow;
             _downloadFinalBuildJson = DownloadFinalBuildJson;
             _queueBackgroundFinalBuildRefresh = QueueBackgroundFinalBuildRefresh;
+            _resolveLanguageCode = ResolveGameLanguageCode;
         }
     }
 
@@ -593,14 +611,187 @@ internal sealed class CardSetBuildDataRepository
                 return new ItemBoardItemSpec
                 {
                     TemplateId = Guid.Parse(entry.CardId!),
-                    Tier = MapRecommendationTier(entry.Tier),
+                    Tier = !string.IsNullOrWhiteSpace(entry.TierName)
+                        ? MapRecommendationTier(entry.TierName)
+                        : MapRecommendationTier(entry.Tier),
                     SocketId = entry.Slot.HasValue
-                        ? (EContainerSocketId?)Mathf.Clamp(entry.Slot.Value, 0, 9)
+                        ? (EContainerSocketId?)Math.Clamp(entry.Slot.Value, 0, 9)
                         : null,
                     EnchantmentType = hasEnchant ? enchantType : null,
                 };
             })
             .ToArray();
+    }
+
+    private static FinalBuildRoot? ConvertMetricsRoot(MetricsFinalBuildRoot? root)
+    {
+        if (root?.Rows == null || root.Rows.Count == 0)
+            return null;
+
+        var heroes = root
+            .Rows.Where(row =>
+                row != null
+                && !string.IsNullOrWhiteSpace(row.Hero)
+                && row.Items != null
+                && row.Items.Count > 0
+            )
+            .GroupBy(row => row.Hero!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => BuildBucket(group),
+                StringComparer.OrdinalIgnoreCase
+            );
+
+        return heroes.Count == 0 ? null : new FinalBuildRoot { Heroes = heroes };
+    }
+
+    private static BuildQueryBucket BuildBucket(IEnumerable<MetricsFinalBuildRow> rows)
+    {
+        var orderedRows = rows
+            .OrderBy(row => row.Rank.GetValueOrDefault(int.MaxValue))
+            .ThenByDescending(row => row.GoldScore)
+            .ThenByDescending(row => row.RunCount)
+            .ThenBy(row => row.Signature ?? string.Empty, StringComparer.Ordinal)
+            .ToArray();
+
+        var bucket = new BuildQueryBucket();
+        var subsetCandidates = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+
+        for (var rowIndex = 0; rowIndex < orderedRows.Length; rowIndex++)
+        {
+            var row = orderedRows[rowIndex];
+            var build = ConvertMetricsRow(row, bucket.Builds.Count);
+            if (build.PlayerCards.Count == 0)
+                continue;
+
+            var buildId = bucket.Builds.Count;
+            bucket.Builds.Add(build);
+            foreach (var cardId in build.CardIds)
+            {
+                if (!bucket.CardIndex.TryGetValue(cardId, out var buildIds))
+                {
+                    buildIds = new List<int>();
+                    bucket.CardIndex[cardId] = buildIds;
+                }
+
+                buildIds.Add(buildId);
+            }
+
+            AddSubsetCandidates(subsetCandidates, build.CardIds, buildId);
+        }
+
+        foreach (var entry in subsetCandidates)
+        {
+            bucket.SubsetIndex[entry.Key] = new SubsetRecord
+            {
+                MatchedBuildIds = entry.Value.Distinct().ToList(),
+            };
+        }
+
+        bucket.DistinctBuildCount = orderedRows.Length;
+        bucket.IncludedBuildCount = bucket.Builds.Count;
+        return bucket;
+    }
+
+    private static BuildRecord ConvertMetricsRow(MetricsFinalBuildRow row, int buildId)
+    {
+        var cards = row
+            .Items.Select(TryNormalizeMetricsItem)
+            .Where(item => item != null)
+            .Cast<NormalizedMetricsItem>()
+            .OrderBy(item => item.Item.Socket ?? item.Item.SlotIndex ?? int.MaxValue)
+            .ThenBy(item => item.TemplateId, StringComparer.Ordinal)
+            .Select(item => new PlayerCardEntry
+            {
+                CardId = item.TemplateId,
+                Slot = item.Item.Socket ?? item.Item.SlotIndex,
+                TierName = item.Item.Tier,
+                Enchant = item.Item.Enchant,
+            })
+            .ToList();
+        var cardIds = cards
+            .Select(card => card.CardId!)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(cardId => cardId, StringComparer.Ordinal)
+            .ToList();
+
+        return new BuildRecord
+        {
+            BuildId = buildId,
+            CardIds = cardIds,
+            SetSignature = row.Signature ?? string.Join("|", cardIds),
+            Source = "bpp-metrics",
+            GoldScore = row.GoldScore,
+            Rank = row.Rank,
+            RunCount = row.RunCount,
+            PlayerCards = cards,
+        };
+    }
+
+    private static NormalizedMetricsItem? TryNormalizeMetricsItem(MetricsFinalBuildItem? item)
+    {
+        return item != null && Guid.TryParse(item.TemplateId, out var templateId)
+            ? new NormalizedMetricsItem(item, templateId.ToString())
+            : null;
+    }
+
+    private static void AddSubsetCandidates(
+        IDictionary<string, List<int>> subsetCandidates,
+        IReadOnlyList<string> cardIds,
+        int buildId
+    )
+    {
+        var distinctCardIds = cardIds
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(cardId => cardId, StringComparer.Ordinal)
+            .ToArray();
+        var maxSubsetSize = Math.Min(3, distinctCardIds.Length);
+        for (var subsetSize = 1; subsetSize <= maxSubsetSize; subsetSize++)
+            AddSubsetCandidates(
+                subsetCandidates,
+                distinctCardIds,
+                subsetSize,
+                0,
+                new List<string>(),
+                buildId
+            );
+    }
+
+    private static void AddSubsetCandidates(
+        IDictionary<string, List<int>> subsetCandidates,
+        IReadOnlyList<string> cardIds,
+        int subsetSize,
+        int startIndex,
+        List<string> selected,
+        int buildId
+    )
+    {
+        if (selected.Count == subsetSize)
+        {
+            var key = string.Join("|", selected);
+            if (!subsetCandidates.TryGetValue(key, out var buildIds))
+            {
+                buildIds = new List<int>();
+                subsetCandidates[key] = buildIds;
+            }
+
+            buildIds.Add(buildId);
+            return;
+        }
+
+        for (var index = startIndex; index < cardIds.Count; index++)
+        {
+            selected.Add(cardIds[index]);
+            AddSubsetCandidates(
+                subsetCandidates,
+                cardIds,
+                subsetSize,
+                index + 1,
+                selected,
+                buildId
+            );
+            selected.RemoveAt(selected.Count - 1);
+        }
     }
 
     private static ETier MapRecommendationTier(int? rawTier)
@@ -614,9 +805,30 @@ internal sealed class CardSetBuildDataRepository
         return (ETier)normalizedTier;
     }
 
+    private static ETier MapRecommendationTier(string? tierName)
+    {
+        if (string.IsNullOrWhiteSpace(tierName))
+            return ETier.Bronze;
+
+        return tierName.Trim() switch
+        {
+            "Bronze" => ETier.Bronze,
+            "Silver" => ETier.Silver,
+            "Gold" => ETier.Gold,
+            "Diamond" => ETier.Diamond,
+            "Legendary" => ETier.Legendary,
+            _ => ETier.Bronze,
+        };
+    }
+
     private static string ResolveFinalBuildLabel()
     {
-        return FinalBuildLabel.Resolve(PlayerPreferences.Data?.LanguageCode ?? string.Empty);
+        return FinalBuildLabel.Resolve(_resolveLanguageCode());
+    }
+
+    private static string ResolveGameLanguageCode()
+    {
+        return PlayerPreferences.Data?.LanguageCode ?? string.Empty;
     }
 
     private sealed class FinalBuildRoot
@@ -627,18 +839,32 @@ internal sealed class CardSetBuildDataRepository
 
     private sealed class BuildQueryBucket
     {
+        [JsonProperty("distinctBuildCount")]
+        public int DistinctBuildCount { get; set; }
+
+        [JsonProperty("includedBuildCount")]
+        public int IncludedBuildCount { get; set; }
+
         [JsonProperty("builds")]
         public List<BuildRecord> Builds { get; set; } = new();
 
         [JsonProperty("cardIndex")]
-        public Dictionary<string, List<int>>? CardIndex { get; set; }
+        public Dictionary<string, List<int>> CardIndex { get; set; } =
+            new(StringComparer.Ordinal);
 
         [JsonProperty("subsetIndex")]
-        public Dictionary<string, SubsetRecord>? SubsetIndex { get; set; }
+        public Dictionary<string, SubsetRecord> SubsetIndex { get; set; } =
+            new(StringComparer.Ordinal);
     }
 
     private sealed class BuildRecord
     {
+        [JsonProperty("buildId")]
+        public int BuildId { get; set; }
+
+        [JsonProperty("cardIds")]
+        public List<string> CardIds { get; set; } = new();
+
         [JsonProperty("source")]
         public string? Source { get; set; }
 
@@ -647,6 +873,12 @@ internal sealed class CardSetBuildDataRepository
 
         [JsonProperty("goldScore")]
         public double GoldScore { get; set; }
+
+        [JsonProperty("rank")]
+        public int? Rank { get; set; }
+
+        [JsonProperty("runCount")]
+        public int? RunCount { get; set; }
 
         [JsonProperty("playerCards")]
         public List<PlayerCardEntry> PlayerCards { get; set; } = new();
@@ -669,7 +901,71 @@ internal sealed class CardSetBuildDataRepository
         [JsonProperty("tier")]
         public int? Tier { get; set; }
 
+        [JsonProperty("tierName")]
+        public string? TierName { get; set; }
+
         [JsonProperty("enchant")]
         public string? Enchant { get; set; }
+    }
+
+    private sealed class MetricsFinalBuildRoot
+    {
+        [JsonProperty("schema_version")]
+        public string? SchemaVersion { get; set; }
+
+        [JsonProperty("rows")]
+        public List<MetricsFinalBuildRow> Rows { get; set; } = new();
+    }
+
+    private sealed class MetricsFinalBuildRow
+    {
+        [JsonProperty("hero")]
+        public string? Hero { get; set; }
+
+        [JsonProperty("sig")]
+        public string? Signature { get; set; }
+
+        [JsonProperty("gold_score")]
+        public double GoldScore { get; set; }
+
+        [JsonProperty("rank")]
+        public int? Rank { get; set; }
+
+        [JsonProperty("run_count")]
+        public int? RunCount { get; set; }
+
+        [JsonProperty("items")]
+        public List<MetricsFinalBuildItem> Items { get; set; } = new();
+    }
+
+    private sealed class MetricsFinalBuildItem
+    {
+        [JsonProperty("template_id")]
+        public string? TemplateId { get; set; }
+
+        [JsonProperty("socket")]
+        public int? Socket { get; set; }
+
+        [JsonProperty("slot_index")]
+        public int? SlotIndex { get; set; }
+
+        [JsonProperty("tier")]
+        public string? Tier { get; set; }
+
+        [JsonProperty("enchant")]
+        public string? Enchant { get; set; }
+    }
+
+    private sealed class NormalizedMetricsItem
+    {
+        public NormalizedMetricsItem(MetricsFinalBuildItem item, string templateId)
+        {
+            Item = item;
+            TemplateId = templateId;
+        }
+
+        public MetricsFinalBuildItem Item { get; }
+
+        public string TemplateId { get; }
     }
 }

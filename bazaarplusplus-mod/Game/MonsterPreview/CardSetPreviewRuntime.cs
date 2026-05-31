@@ -193,7 +193,9 @@ internal sealed class CardSetPreviewRuntime : MonoBehaviour
 
         var nextMode = CardSetPreviewHotkeys.ResolveDisplayMode(
             keyboard.aKey.wasPressedThisFrame,
-            keyboard.dKey.wasPressedThisFrame
+            keyboard.dKey.wasPressedThisFrame,
+            keyboard.leftArrowKey.wasPressedThisFrame,
+            keyboard.rightArrowKey.wasPressedThisFrame
         );
         if (nextMode.HasValue)
             return TrySetDisplayMode(nextMode.Value);
@@ -240,7 +242,9 @@ internal sealed class CardSetPreviewRuntime : MonoBehaviour
 
         var delta = CardSetPreviewHotkeys.ResolveRecommendationDelta(
             keyboard.wKey.wasPressedThisFrame,
-            keyboard.sKey.wasPressedThisFrame
+            keyboard.sKey.wasPressedThisFrame,
+            keyboard.upArrowKey.wasPressedThisFrame,
+            keyboard.downArrowKey.wasPressedThisFrame
         );
 
         if (delta == 0)

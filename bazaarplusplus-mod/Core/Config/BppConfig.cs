@@ -106,7 +106,7 @@ internal sealed class BppConfig : IBppConfig
         FinalBuildsRemoteUrlConfig = config.Bind(
             "Network",
             "FinalBuildsRemoteUrl",
-            "https://api.example.com/final_builds_for_mod.json",
+            "https://bpp-metrics.bazaarplusplus.com/final_builds/1d/all.json",
             "Remote URL for downloading final build recommendations used by monster preview."
         );
         SponsorListUrlConfig = config.Bind(

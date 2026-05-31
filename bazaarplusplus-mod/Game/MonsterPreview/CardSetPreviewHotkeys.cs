@@ -6,25 +6,33 @@ internal static class CardSetPreviewHotkeys
 {
     public static CardSetBuildRecommendationMode? ResolveDisplayMode(
         bool currentSetPressed,
-        bool finalBuildPressed
+        bool finalBuildPressed,
+        bool previousModePressed,
+        bool nextModePressed
     )
     {
-        if (currentSetPressed == finalBuildPressed)
+        var selectedSetPressed = currentSetPressed || previousModePressed;
+        var tenWinBuildPressed = finalBuildPressed || nextModePressed;
+        if (selectedSetPressed == tenWinBuildPressed)
             return null;
 
-        return currentSetPressed
+        return selectedSetPressed
             ? CardSetBuildRecommendationMode.SelectedSet
             : CardSetBuildRecommendationMode.FinalBuild;
     }
 
     public static int ResolveRecommendationDelta(
         bool previousCandidatePressed,
-        bool nextCandidatePressed
+        bool nextCandidatePressed,
+        bool upCandidatePressed,
+        bool downCandidatePressed
     )
     {
-        if (previousCandidatePressed == nextCandidatePressed)
+        var previousPressed = previousCandidatePressed || upCandidatePressed;
+        var nextPressed = nextCandidatePressed || downCandidatePressed;
+        if (previousPressed == nextPressed)
             return 0;
 
-        return previousCandidatePressed ? -1 : 1;
+        return previousPressed ? -1 : 1;
     }
 }
