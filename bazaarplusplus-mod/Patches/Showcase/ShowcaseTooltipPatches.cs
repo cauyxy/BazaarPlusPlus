@@ -1,8 +1,11 @@
 #pragma warning disable CS0436
+using BazaarGameClient.Domain.Models.Cards;
 using BazaarPlusPlus.Game.MonsterPreview;
 using HarmonyLib;
+using System.Reflection;
 using TheBazaar;
 using TheBazaar.UI.Tooltips;
+using UnityEngine;
 
 namespace BazaarPlusPlus;
 
@@ -65,8 +68,11 @@ internal static class ShowcaseShowTooltipControllerPatch
     }
 
     [HarmonyPostfix]
-    private static void Postfix()
+    private static void Postfix(CardTooltipController __instance)
     {
+        if (ShowcaseTooltipBypass.ShowingTooltip)
+            ShowcaseTooltipLayering.BringToFront(__instance);
+
         ShowcaseTooltipBypass.ShowingTooltip = false;
     }
 }
@@ -88,10 +94,19 @@ internal static class ShowcaseDisableLockCanvasPatch
 [HarmonyPatch(typeof(CardTooltipController), nameof(CardTooltipController.LockTooltipToggle))]
 public static class CardTooltipControllerLockTogglePatch
 {
+    private static readonly PropertyInfo CurrentCardProperty = AccessTools.Property(
+        typeof(CardTooltipController),
+        "CurrentCard"
+    );
+    private static readonly FieldInfo CurrentCardField = AccessTools.Field(
+        typeof(CardTooltipController),
+        "CurrentCard"
+    ) ?? AccessTools.Field(typeof(CardTooltipController), "_currentCard");
+
     [HarmonyPrefix]
     static bool Prefix(CardTooltipController __instance)
     {
-        var currentCard = __instance?.CurrentCard;
+        var currentCard = TryGetCurrentCard(__instance);
         if (currentCard == null)
             return true;
 
@@ -104,6 +119,15 @@ public static class CardTooltipControllerLockTogglePatch
             $"Suppressed lock toggle for showcase card {currentCard.Template?.InternalName ?? currentCard.TemplateId.ToString()}"
         );
         return false;
+    }
+
+    private static Card TryGetCurrentCard(CardTooltipController controller)
+    {
+        if (controller == null)
+            return null;
+
+        return CurrentCardProperty?.GetValue(controller) as Card
+            ?? CurrentCardField?.GetValue(controller) as Card;
     }
 }
 
@@ -120,4 +144,42 @@ internal static class ShowcaseTooltipBypass
     /// triggered by a showcase card. Blocks DisableLockModeCanvas.
     /// </summary>
     public static bool ShowingTooltip;
+}
+
+internal static class ShowcaseTooltipLayering
+{
+    private const int MinimumTooltipSortOrder = 100;
+
+    public static void BringToFront(CardTooltipController controller)
+    {
+        if (controller == null)
+            return;
+
+        controller.transform.SetAsLastSibling();
+
+        var maxSortOrder = GetMaxSortOrder(controller);
+        var offset = Mathf.Max(0, MinimumTooltipSortOrder - maxSortOrder);
+
+        foreach (var canvas in controller.GetComponentsInChildren<Canvas>(true))
+        {
+            canvas.overrideSorting = true;
+            canvas.sortingOrder += offset;
+        }
+
+        foreach (var renderer in controller.GetComponentsInChildren<Renderer>(true))
+            renderer.sortingOrder += offset;
+    }
+
+    private static int GetMaxSortOrder(CardTooltipController controller)
+    {
+        var maxSortOrder = 0;
+
+        foreach (var canvas in controller.GetComponentsInChildren<Canvas>(true))
+            maxSortOrder = Mathf.Max(maxSortOrder, canvas.sortingOrder);
+
+        foreach (var renderer in controller.GetComponentsInChildren<Renderer>(true))
+            maxSortOrder = Mathf.Max(maxSortOrder, renderer.sortingOrder);
+
+        return maxSortOrder;
+    }
 }
