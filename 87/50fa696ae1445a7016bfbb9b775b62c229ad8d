@@ -1,0 +1,32 @@
+bazaarplusplus-mod/src/BazaarPlusPlus/Game/LiveBuildPanel/LiveBuildPanel.cs
+  s_25fea0820aafbe::t_b8d01e9f4d5d6a 66
+bazaarplusplus-mod/src/BazaarPlusPlus/Game/LiveBuildPanel/Recommendations/BuildRecommendationRepository.cs
+  s_25fea0820aafbe::t_b8d01e9f4d5d6a 51,218-255,260-261,263,265-279,580,601,629
+bazaarplusplus-mod/src/BazaarPlusPlus/GameInterop/CardPreview/NativeCardPreviewFactory.cs
+  s_25fea0820aafbe::t_12827cb8c321c7 50,57,65,71
+bazaarplusplus-mod/src/BazaarPlusPlus/GameInterop/CardPreview/NativeCardPreviewPrefabResolver.cs
+  s_25fea0820aafbe::t_b8d01e9f4d5d6a 2,4-6,9,14-17,24,26,38,41-44,51-63,66,70-119,123,137-138,143-144,149
+bazaarplusplus-mod/src/BazaarPlusPlus/GameInterop/ItemBoardPreview/ItemBoardPreviewSurface.cs
+  s_25fea0820aafbe::t_b8d01e9f4d5d6a 136-140,376,382-383,398-417
+bazaarplusplus-mod/src/BazaarPlusPlus/Game/CollectionPanel/Grid/CollectionGridVirtualizer.cs
+  s_25fea0820aafbe::t_20ada052684f05 791
+  s_25fea0820aafbe::t_c94251439d8d1c 25-26
+bazaarplusplus-mod/src/BazaarPlusPlus/GameInterop/CardPreview/NativeCardPreviewPool.cs
+  s_25fea0820aafbe::t_b8d01e9f4d5d6a 4-5,45-52,71-72,74-81,85,88,93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "8750fa696ae1445a7016bfbb9b775b62c229ad8d",
+  "prompts": {},
+  "sessions": {
+    "s_25fea0820aafbe": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f279c-b3f4-7212-9409-32c54637d4c3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Xinyu YANG <cauyxy@gmail.com>"
+    }
+  }
+}
