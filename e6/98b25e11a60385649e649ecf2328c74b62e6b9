@@ -1,0 +1,21 @@
+bazaarplusplus-mod/src/BazaarPlusPlus/BazaarPlusPlus.csproj
+  s_e7782156fc0135::t_23aaf667d9511c 230
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "e698b25e11a60385649e649ecf2328c74b62e6b9",
+  "prompts": {},
+  "sessions": {
+    "s_e7782156fc0135": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2bc2-e673-76a2-81d4-4616dc38d946",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Xinyu YANG <cauyxy@gmail.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
