@@ -116,9 +116,7 @@ def _normalize_version(version: str) -> str:
     return version
 
 
-def _validate_and_get_installer_version(
-    url: str, expected_version: str | None = None
-) -> str:
+def _validate_installer_url(url: str, expected_version: str) -> None:
     parsed = _validated_release_url(url)
     try:
         decoded_path = urllib.parse.unquote(parsed.path, errors="strict")
@@ -130,7 +128,7 @@ def _validate_and_get_installer_version(
         len(parts) != 5
         or parts[0] != ""
         or not _is_valid_release_version(path_version)
-        or (expected_version is not None and path_version != expected_version)
+        or path_version != expected_version
         or parts[2] != RELEASE_PLATFORM
         or parts[3] != "updater"
         or any(part in (".", "..") for part in parts[1:])
@@ -138,7 +136,13 @@ def _validate_and_get_installer_version(
         or not parts[4][:-4]
     ):
         raise RuntimeError("官方 Windows 安装器 URL 无效")
-    return path_version
+
+
+def _installer_url_verifier(expected_version: str) -> Callable[[str], None]:
+    def verify(url: str) -> None:
+        _validate_installer_url(url, expected_version)
+
+    return verify
 
 
 def _request_json(url: str) -> dict[str, Any]:
@@ -178,7 +182,7 @@ def _latest_release() -> dict[str, str]:
     url = windows.get("url")
     if not isinstance(url, str):
         raise RuntimeError("官方发布信息缺少 Windows 安装器 URL")
-    _validate_and_get_installer_version(url, version)
+    _validate_installer_url(url, version)
 
     return {"version": version, "url": url}
 
@@ -191,16 +195,22 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _assert_https_no_credentials(url: str) -> None:
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme != "https" or parsed.username is not None or parsed.password is not None:
+        raise RuntimeError("下载 URL 必须是不含凭据的 https")
+
+
 def _download(
     url: str,
     destination: Path,
     *,
     expected_sha256: str | None = None,
-    allowed_host: str | None = None,
+    verify_url: Callable[[str], None] | None = None,
     progress: Callable[[int], None] | None = None,
 ) -> Path:
-    if expected_sha256 is None and allowed_host is None:
-        raise RuntimeError("下载必须提供 SHA-256 或受信任来源")
+    if (expected_sha256 is None) == (verify_url is None):
+        raise RuntimeError("下载必须提供 SHA-256 或 URL 校验器（二选一）")
     if (
         expected_sha256 is not None
         and destination.is_file()
@@ -216,20 +226,16 @@ def _download(
     downloaded = 0
 
     try:
-        installer_version = None
-        if allowed_host == RELEASE_HOST:
-            installer_version = _validate_and_get_installer_version(url)
-        elif allowed_host is not None:
-            _validated_https_url(url, allowed_host)
+        if verify_url is not None:
+            _assert_https_no_credentials(url)
+            verify_url(url)
         with urllib.request.urlopen(
             request, timeout=60, context=_ssl_context()
         ) as response:
-            if installer_version is not None:
-                _validate_and_get_installer_version(
-                    response.geturl(), installer_version
-                )
-            elif allowed_host is not None:
-                _validated_https_url(response.geturl(), allowed_host)
+            if verify_url is not None:
+                final_url = response.geturl()
+                _assert_https_no_credentials(final_url)
+                verify_url(final_url)
             raw_content_length = response.headers.get("Content-Length")
             try:
                 content_length = (
@@ -640,7 +646,7 @@ class Plugin:
                     _download,
                     release["url"],
                     installer,
-                    allowed_host=RELEASE_HOST,
+                    verify_url=_installer_url_verifier(release["version"]),
                     progress=download_progress,
                 )
                 await self._progress("提取 BepInEx payload", 74)

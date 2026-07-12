@@ -409,7 +409,9 @@ class DownloadTests(unittest.TestCase):
                 backend.urllib.request, "urlopen", return_value=response
             ):
                 result = backend._download(
-                    self.url, destination, allowed_host=backend.RELEASE_HOST
+                    self.url,
+                    destination,
+                    verify_url=backend._installer_url_verifier("4.4.3"),
                 )
 
             self.assertEqual(result, destination)
@@ -424,7 +426,9 @@ class DownloadTests(unittest.TestCase):
             ):
                 with self.assertRaises(RuntimeError):
                     backend._download(
-                        self.url, destination, allowed_host=backend.RELEASE_HOST
+                        self.url,
+                        destination,
+                        verify_url=backend._installer_url_verifier("4.4.3"),
                     )
 
         self.assertEqual(response.read_calls, 0)
@@ -446,7 +450,7 @@ class DownloadTests(unittest.TestCase):
                             backend._download(
                                 self.url,
                                 destination,
-                                allowed_host=backend.RELEASE_HOST,
+                                verify_url=backend._installer_url_verifier("4.4.3"),
                             )
 
                 self.assertEqual(response.read_calls, 0)
@@ -465,7 +469,7 @@ class DownloadTests(unittest.TestCase):
                     backend._download(
                         self.url,
                         Path(root_name) / "installer.exe",
-                        allowed_host=backend.RELEASE_HOST,
+                        verify_url=backend._installer_url_verifier("4.4.3"),
                     )
 
         self.assertEqual(response.read_calls, 0)
@@ -483,7 +487,7 @@ class DownloadTests(unittest.TestCase):
                     backend._download(
                         self.url,
                         Path(root_name) / "installer.exe",
-                        allowed_host=backend.RELEASE_HOST,
+                        verify_url=backend._installer_url_verifier("4.4.3"),
                     )
 
     def test_rejects_content_length_that_does_not_match_body(self):
@@ -500,7 +504,7 @@ class DownloadTests(unittest.TestCase):
                     backend._download(
                         self.url,
                         Path(root_name) / "installer.exe",
-                        allowed_host=backend.RELEASE_HOST,
+                        verify_url=backend._installer_url_verifier("4.4.3"),
                     )
 
     def test_host_restricted_download_does_not_reuse_existing_file(self):
@@ -512,7 +516,9 @@ class DownloadTests(unittest.TestCase):
                 backend.urllib.request, "urlopen", return_value=response
             ):
                 backend._download(
-                    self.url, destination, allowed_host=backend.RELEASE_HOST
+                    self.url,
+                    destination,
+                    verify_url=backend._installer_url_verifier("4.4.3"),
                 )
 
             self.assertEqual(destination.read_bytes(), b"new")
@@ -530,10 +536,59 @@ class DownloadTests(unittest.TestCase):
             ):
                 with self.assertRaises(RuntimeError):
                     backend._download(
-                        self.url, destination, allowed_host=backend.RELEASE_HOST
+                        self.url,
+                        destination,
+                        verify_url=backend._installer_url_verifier("4.4.3"),
                     )
 
             self.assertFalse(partial.exists())
+
+    def test_sha_mode_reuses_matching_cached_file(self):
+        with tempfile.TemporaryDirectory() as root_name:
+            destination = Path(root_name) / "archive.tar.xz"
+            destination.write_bytes(b"cached")
+            expected_sha256 = backend._sha256(destination)
+            with mock.patch.object(backend.urllib.request, "urlopen") as urlopen:
+                result = backend._download(
+                    "https://example.com/archive.tar.xz",
+                    destination,
+                    expected_sha256=expected_sha256,
+                )
+
+            self.assertEqual(result, destination)
+            urlopen.assert_not_called()
+
+    def test_requires_exactly_one_trust_strategy(self):
+        with tempfile.TemporaryDirectory() as root_name:
+            destination = Path(root_name) / "installer.exe"
+            with self.assertRaisesRegex(
+                RuntimeError, "下载必须提供 SHA-256 或 URL 校验器（二选一）"
+            ):
+                backend._download(self.url, destination)
+            with self.assertRaisesRegex(
+                RuntimeError, "下载必须提供 SHA-256 或 URL 校验器（二选一）"
+            ):
+                backend._download(
+                    self.url,
+                    destination,
+                    expected_sha256="unused",
+                    verify_url=lambda url: None,
+                )
+
+    def test_rejects_plain_http_even_with_permissive_verifier(self):
+        with tempfile.TemporaryDirectory() as root_name:
+            destination = Path(root_name) / "installer.exe"
+            with mock.patch.object(backend.urllib.request, "urlopen") as urlopen:
+                with self.assertRaisesRegex(
+                    RuntimeError, "下载 URL 必须是不含凭据的 https"
+                ):
+                    backend._download(
+                        "http://example.com/installer.exe",
+                        destination,
+                        verify_url=lambda url: None,
+                    )
+
+            urlopen.assert_not_called()
 
 
 class InstallTransactionTests(unittest.TestCase):
