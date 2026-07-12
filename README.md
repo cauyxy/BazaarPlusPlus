@@ -72,19 +72,21 @@ pnpm run bundle
 `pnpm run bundle` 会依次执行 TypeScript 类型检查、TypeScript / Python 单元测试和 Rollup 构建，成品位于：
 
 ```text
-out/BazaarPlusPlus-<version>.zip
+.build/package/BazaarPlusPlus-<version>.zip
 ```
 
 ## 仓库结构
 
 ```text
 .
-├── main.py                        # Decky Python 后端：下载、校验、安装事务
+├── main.py                        # 仅暴露 Decky Plugin
+├── backend/bpp/                   # 后端领域、安装与 Decky adapter
 ├── src/
-│   ├── index.tsx                  # Steam Deck 快捷菜单界面
-│   ├── launchOptions.ts           # Proton 启动参数规划
-│   └── launchOptions.test.ts
-├── tests/test_decky_backend.py    # 后端单元测试
+│   ├── index.tsx                  # 插件注册入口
+│   ├── decky/                     # 集中式后端 RPC client
+│   └── features/                  # installer 与 launch-options 功能
+├── tests/backend/                 # 后端模块与架构测试
+├── tests/packaging/               # 最终 zip import smoke test
 ├── plugin.json                    # Decky 插件元数据
 ├── package.json                   # 依赖与构建命令
 ├── pnpm-lock.yaml                 # 可复现依赖锁定

@@ -9,8 +9,8 @@
     "watch": "rollup -c -w",
     "check": "tsc --noEmit",
     "test": "pnpm run test:ts && pnpm run test:py",
-    "test:ts": "tsc -p tsconfig.test.json && node --test dist-test/*.test.js",
-    "test:py": "python3 -m unittest discover -s tests -p 'test_decky_*.py'",
+    "test:ts": "rm -rf .build/ts-tests && tsc -p tsconfig.test.json && node --test $(find .build/ts-tests -name '*.test.js' -type f | sort)",
+    "test:py": "python3 -B -m unittest discover -s tests -t . -p 'test_*.py'",
     "bundle": "bash scripts/build-plugin.sh"
   },
   "repository": {

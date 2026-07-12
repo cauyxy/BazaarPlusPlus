@@ -1,9 +1,8 @@
 const DLL_OVERRIDE = "winhttp=n,b";
 
-export type LaunchOptionsBackup = {
-  original: string;
-  managed: string;
-} | null;
+import type { LaunchOptionsBackup } from "../../decky/backendClient.js";
+
+export type { LaunchOptionsBackup };
 
 export type LaunchSnapshot = {
   current: string;
@@ -94,6 +93,13 @@ export function planConfigure(snapshot: LaunchSnapshot): LaunchEffect {
 }
 
 export function planRestore(snapshot: LaunchSnapshot): LaunchEffect {
+  if (snapshot.backup && snapshot.current === snapshot.backup.original) {
+    return {
+      setLaunchOptions: null,
+      saveBackup: null,
+      clearBackup: true,
+    };
+  }
   const restored =
     snapshot.backup && snapshot.current === snapshot.backup.managed
       ? snapshot.backup.original

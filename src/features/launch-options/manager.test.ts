@@ -5,7 +5,7 @@ import {
   planConfigure,
   planRestore,
   type LaunchOptionsBackup,
-} from "./launchOptions.js";
+} from "./model.js";
 
 const W = (value: string): string => `WINEDLLOVERRIDES="${value}"`;
 

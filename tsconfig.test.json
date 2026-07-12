@@ -3,10 +3,10 @@
   "compilerOptions": {
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "outDir": "dist-test",
+    "outDir": ".build/ts-tests",
     "noEmit": false,
     "types": ["node"]
   },
-  "include": ["src/launchOptions.ts", "src/**/*.test.ts"],
+  "include": ["src/**/*.test.ts"],
   "exclude": []
 }

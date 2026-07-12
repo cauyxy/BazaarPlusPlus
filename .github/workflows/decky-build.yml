@@ -31,5 +31,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: BazaarPlusPlus-Decky
-          path: out/BazaarPlusPlus-*.zip
+          path: .build/package/BazaarPlusPlus-*.zip
           if-no-files-found: error
