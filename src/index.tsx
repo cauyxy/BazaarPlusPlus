@@ -13,9 +13,14 @@ import {
 } from "@decky/api";
 import { useCallback, useEffect, useState } from "react";
 import { FaStore } from "react-icons/fa";
+import {
+  planConfigure,
+  planRestore,
+  type LaunchEffect,
+  type LaunchOptionsBackup,
+} from "./launchOptions";
 
 const APP_ID = 1617400;
-const DLL_OVERRIDE = "winhttp=n,b";
 
 type PluginStatus = {
   game_found: boolean;
@@ -28,11 +33,6 @@ type PluginStatus = {
 type LatestRelease = {
   version: string;
 };
-
-type LaunchOptionsBackup = {
-  original: string;
-  managed: string;
-} | null;
 
 declare const SteamClient: {
   Apps: {
@@ -82,91 +82,28 @@ function currentLaunchOptions(): Promise<string> {
   });
 }
 
-function addWinhttpOverride(input: string): string {
-  const options = input.trim();
-  const variable =
-    /\bWINEDLLOVERRIDES=(?:"([^"]*)"|'([^']*)'|([^\s]+))/i;
-  const match = variable.exec(options);
-
-  let withOverride = options;
-  if (match) {
-    const rawValue = match[1] ?? match[2] ?? match[3] ?? "";
-    const entries = rawValue.split(";").filter(Boolean);
-    const winhttpIndex = entries.findIndex((entry) =>
-      /^winhttp(?:\.dll)?=/i.test(entry),
-    );
-    if (winhttpIndex >= 0) {
-      entries[winhttpIndex] = DLL_OVERRIDE;
-    } else {
-      entries.push(DLL_OVERRIDE);
-    }
-    withOverride =
-      options.slice(0, match.index) +
-      `WINEDLLOVERRIDES="${entries.join(";")}"` +
-      options.slice(match.index + match[0].length);
-  } else {
-    withOverride = `WINEDLLOVERRIDES="${DLL_OVERRIDE}" ${options}`.trim();
+async function applyLaunchEffect(effect: LaunchEffect): Promise<void> {
+  if (effect.saveBackup) {
+    await rememberLaunchOptions(effect.saveBackup.original, effect.saveBackup.managed);
   }
-
-  if (!/%command%/i.test(withOverride)) {
-    const managedVariable = variable.exec(withOverride);
-    if (!managedVariable) {
-      return `WINEDLLOVERRIDES="${DLL_OVERRIDE}" %command% ${withOverride}`.trim();
-    }
-    const commandPosition =
-      managedVariable.index + managedVariable[0].length;
-    const beforeCommand = withOverride.slice(0, commandPosition).trim();
-    const afterCommand = withOverride.slice(commandPosition).trim();
-    return `${beforeCommand} %command%${afterCommand ? ` ${afterCommand}` : ""}`;
+  if (effect.setLaunchOptions !== null) {
+    SteamClient.Apps.SetAppLaunchOptions(APP_ID, effect.setLaunchOptions);
   }
-  return withOverride;
-}
-
-function removeWinhttpOverride(input: string): string {
-  const variable =
-    /\bWINEDLLOVERRIDES=(?:"([^"]*)"|'([^']*)'|([^\s]+))\s*/i;
-  const match = variable.exec(input);
-  if (!match) {
-    return input.trim();
+  if (effect.clearBackup) {
+    await clearLaunchOptionsBackup();
   }
-
-  const rawValue = match[1] ?? match[2] ?? match[3] ?? "";
-  const entries = rawValue
-    .split(";")
-    .filter((entry) => entry && !/^winhttp(?:\.dll)?=/i.test(entry));
-  const replacement = entries.length
-    ? `WINEDLLOVERRIDES="${entries.join(";")}" `
-    : "";
-  return (
-    input.slice(0, match.index) +
-    replacement +
-    input.slice(match.index + match[0].length)
-  )
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 async function configureLaunchOptions(): Promise<void> {
-  const original = await currentLaunchOptions();
-  const managed = addWinhttpOverride(original);
+  const current = await currentLaunchOptions();
   const backup = await getLaunchOptionsBackup();
-  if (!backup) {
-    await rememberLaunchOptions(original, managed);
-  }
-  if (managed !== original) {
-    SteamClient.Apps.SetAppLaunchOptions(APP_ID, managed);
-  }
+  await applyLaunchEffect(planConfigure({ current, backup }));
 }
 
 async function restoreLaunchOptions(): Promise<void> {
   const current = await currentLaunchOptions();
   const backup = await getLaunchOptionsBackup();
-  const restored =
-    backup && current === backup.managed
-      ? backup.original
-      : removeWinhttpOverride(current);
-  SteamClient.Apps.SetAppLaunchOptions(APP_ID, restored);
-  await clearLaunchOptionsBackup();
+  await applyLaunchEffect(planRestore({ current, backup }));
 }
 
 function StatusCard({

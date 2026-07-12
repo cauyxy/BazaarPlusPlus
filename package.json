@@ -8,7 +8,9 @@
     "build": "rollup -c",
     "watch": "rollup -c -w",
     "check": "tsc --noEmit",
-    "test": "python3 -m unittest discover -s tests -p 'test_decky_*.py'",
+    "test": "pnpm run test:ts && pnpm run test:py",
+    "test:ts": "tsc -p tsconfig.test.json && node --test dist-test/*.test.js",
+    "test:py": "python3 -m unittest discover -s tests -p 'test_decky_*.py'",
     "bundle": "bash scripts/build-plugin.sh"
   },
   "repository": {
@@ -26,6 +28,7 @@
   "devDependencies": {
     "@decky/rollup": "^1.0.2",
     "@decky/ui": "^4.11.0",
+    "@types/node": "^20.17.0",
     "@types/react": "19.1.1",
     "@types/react-dom": "19.1.1",
     "@types/react-router": "^5.1.20",

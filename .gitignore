@@ -5,6 +5,7 @@ Thumbs.db
 .vscode/
 
 dist/
+dist-test/
 node_modules/
 out/
 __pycache__/

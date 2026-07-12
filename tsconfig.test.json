@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist-test",
+    "noEmit": false,
+    "types": ["node"]
+  },
+  "include": ["src/launchOptions.ts", "src/**/*.test.ts"],
+  "exclude": []
+}
