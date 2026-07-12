@@ -164,6 +164,75 @@ class PayloadVersionTests(unittest.TestCase):
             self._extract(b"1.2.3\xff", "1.2.3")
 
 
+class NormalizeVersionTests(unittest.TestCase):
+    def test_strips_prod_suffix_case_insensitively(self):
+        for version in ("1.2.3.prod", "1.2.3.PrOd"):
+            with self.subTest(version=version):
+                self.assertEqual(backend._normalize_version(version), "1.2.3")
+
+    def test_preserves_version_without_prod_suffix(self):
+        self.assertEqual(backend._normalize_version("1.2.3"), "1.2.3")
+
+    def test_preserves_prod_when_not_at_end(self):
+        self.assertEqual(backend._normalize_version("1.2.prod.3"), "1.2.prod.3")
+
+    def test_preserves_unknown_version(self):
+        self.assertEqual(backend._normalize_version("未知"), "未知")
+
+
+class UpdateAvailableTests(unittest.TestCase):
+    def test_returns_false_when_not_installed(self):
+        game_path = Path("/game")
+        with (
+            mock.patch.object(backend, "find_game_path", return_value=game_path),
+            mock.patch.object(backend, "_installed_version", return_value=None),
+        ):
+            self.assertFalse(backend._update_available("4.4.3"))
+
+    def test_returns_false_when_versions_match(self):
+        game_path = Path("/game")
+        with (
+            mock.patch.object(backend, "find_game_path", return_value=game_path),
+            mock.patch.object(backend, "_installed_version", return_value="4.4.3"),
+        ):
+            self.assertFalse(backend._update_available("4.4.3"))
+
+    def test_ignores_installed_prod_suffix(self):
+        game_path = Path("/game")
+        with (
+            mock.patch.object(backend, "find_game_path", return_value=game_path),
+            mock.patch.object(
+                backend, "_installed_version", return_value="4.4.3.prod"
+            ),
+        ):
+            self.assertFalse(backend._update_available("4.4.3"))
+
+    def test_returns_true_for_older_version(self):
+        game_path = Path("/game")
+        with (
+            mock.patch.object(backend, "find_game_path", return_value=game_path),
+            mock.patch.object(backend, "_installed_version", return_value="4.4.2"),
+        ):
+            self.assertTrue(backend._update_available("4.4.3"))
+
+    def test_returns_true_for_unknown_version(self):
+        game_path = Path("/game")
+        with (
+            mock.patch.object(backend, "find_game_path", return_value=game_path),
+            mock.patch.object(backend, "_installed_version", return_value="未知"),
+        ):
+            self.assertTrue(backend._update_available("4.4.3"))
+
+    def test_returns_false_when_game_is_not_found(self):
+        with (
+            mock.patch.object(backend, "find_game_path", return_value=None),
+            mock.patch.object(backend, "_installed_version") as installed_version,
+        ):
+            self.assertFalse(backend._update_available("4.4.3"))
+
+        installed_version.assert_not_called()
+
+
 class ReleaseMetadataTests(unittest.TestCase):
     def _manifest(self, **changes):
         fixture = {

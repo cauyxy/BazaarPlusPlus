@@ -32,6 +32,7 @@ type PluginStatus = {
 
 type LatestRelease = {
   version: string;
+  update_available: boolean;
 };
 
 declare const SteamClient: {
@@ -224,10 +225,7 @@ function Content() {
     }
   };
 
-  const updateAvailable =
-    status?.installed &&
-    latest &&
-    status.installed_version?.replace(/\.prod$/i, "") !== latest.version;
+  const updateAvailable = latest?.update_available ?? false;
 
   return (
     <>

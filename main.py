@@ -110,6 +110,12 @@ def _is_valid_release_version(version: str) -> bool:
     return re.fullmatch(r"[0-9][0-9A-Za-z.+-]{0,63}", version) is not None
 
 
+def _normalize_version(version: str) -> str:
+    if version.casefold().endswith(".prod"):
+        return version[:-5]
+    return version
+
+
 def _validate_and_get_installer_version(
     url: str, expected_version: str | None = None
 ) -> str:
@@ -410,9 +416,7 @@ def _extract_payload(payload_zip: Path, staging: Path, expected_version: str) ->
         raise RuntimeError("安装 payload 版本文件无效") from error
     if not payload_version:
         raise RuntimeError("安装 payload 版本为空")
-    normalized_version = payload_version
-    if normalized_version.casefold().endswith(".prod"):
-        normalized_version = normalized_version[:-5]
+    normalized_version = _normalize_version(payload_version)
     if normalized_version != expected_version:
         raise RuntimeError(
             f"安装 payload 版本不匹配：预期 {expected_version}，实际 {payload_version}"
@@ -544,6 +548,14 @@ def _installed_version(game_path: Path) -> str | None:
         return "未知"
 
 
+def _update_available(latest_version: str) -> bool:
+    game_path = find_game_path()
+    installed = _installed_version(game_path) if game_path else None
+    if installed is None:
+        return False
+    return _normalize_version(installed) != latest_version
+
+
 def _status() -> dict[str, Any]:
     game_path = find_game_path()
     installed_version = _installed_version(game_path) if game_path else None
@@ -580,9 +592,12 @@ class Plugin:
     async def get_status(self) -> dict[str, Any]:
         return await asyncio.to_thread(_status)
 
-    async def check_latest(self) -> dict[str, str]:
+    async def check_latest(self) -> dict[str, Any]:
         release = await self._get_release()
-        return {"version": release["version"]}
+        update_available = await asyncio.to_thread(
+            _update_available, release["version"]
+        )
+        return {"version": release["version"], "update_available": update_available}
 
     async def _get_release(self) -> dict[str, str]:
         if self.release_cache and time.monotonic() - self.release_cache[0] < 600:
