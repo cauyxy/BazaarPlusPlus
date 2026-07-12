@@ -40,7 +40,7 @@ Feature guides, hotkeys, and installation details live at [bazaarplusplus.com/tu
 3. Run `pnpm install && pnpm run bundle` from this repository and copy `out/BazaarPlusPlus-*.zip` to the Deck.
 4. Install that ZIP through Decky, open BazaarPlusPlus in the Quick Access Menu, and select **Install BazaarPlusPlus**.
 
-The plugin finds Steam libraries on internal storage and SD cards, downloads the latest Windows payload from the official BazaarPlusPlus GitHub Release, verifies its SHA-256 digest, and configures Proton's required `WINEDLLOVERRIDES="winhttp=n,b"` launch option. The first install downloads about 70 MB. Exit the game before installing, repairing, resetting, or uninstalling.
+The plugin finds Steam libraries on internal storage and SD cards, downloads the latest Windows installer from the official BazaarPlusPlus R2 release source, verifies the download origin, limits download and extraction sizes, validates the installer structure and payload version, and configures Proton's required `WINEDLLOVERRIDES="winhttp=n,b"` launch option. The first install downloads about 70 MB. Exit the game before installing, repairing, resetting, or uninstalling.
 
 To remove it, use **Uninstall mod** in the BazaarPlusPlus panel first so the plugin can also restore Steam's launch options. Removing the Decky plugin itself does not remove files already installed in the game directory.
 
@@ -109,7 +109,7 @@ pnpm run test
 pnpm run bundle
 ```
 
-The installable artifact is written to `out/BazaarPlusPlus-<version>.zip`. The plugin does not bundle the third-party install payload; it downloads and verifies the latest official release on the Deck, so the first install requires an internet connection.
+The installable artifact is written to `out/BazaarPlusPlus-<version>.zip`. The plugin does not bundle the third-party install payload; it downloads and verifies the latest release from the official R2 source on the Deck, so the first install requires an internet connection.
 
 ### Build the Mod
 

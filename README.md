@@ -40,7 +40,7 @@ BazaarPlusPlus 是一个面向《The Bazaar》的开源项目：游戏内由 Bep
 3. 从本仓库源码运行 `pnpm install && pnpm run bundle`，把 `out/BazaarPlusPlus-*.zip` 复制到 Steam Deck 后通过 Decky 安装。
 4. 打开快捷菜单中的 BazaarPlusPlus，选择「安装 BazaarPlusPlus」。
 
-插件会自动查找内置存储和 SD 卡中的 Steam 库，从官方 BazaarPlusPlus GitHub Release 下载最新版 Windows payload，执行 SHA-256 校验，并配置 Proton 所需的 `WINEDLLOVERRIDES="winhttp=n,b"` 启动参数。首次安装约下载 70 MB；安装、修复、重置或卸载前必须先退出游戏。
+插件会自动查找内置存储和 SD 卡中的 Steam 库，从 BazaarPlusPlus 官方 R2 发布源下载最新版 Windows 安装包，验证下载来源，限制下载和解压体积，并校验安装包结构与 payload 版本；同时会配置 Proton 所需的 `WINEDLLOVERRIDES="winhttp=n,b"` 启动参数。首次安装约下载 70 MB；安装、修复、重置或卸载前必须先退出游戏。
 
 如需移除，请先在 BazaarPlusPlus 面板中点击「卸载模组」，让插件同时恢复 Steam 启动参数；直接删除 Decky 插件不会删除已经写入游戏目录的模组文件。
 
@@ -109,7 +109,7 @@ pnpm run test
 pnpm run bundle
 ```
 
-成品位于 `out/BazaarPlusPlus-<version>.zip`。插件不内置第三方安装 payload；在 Steam Deck 上执行安装时会从官方 Release 获取并验证最新版，因此首次使用需要联网。
+成品位于 `out/BazaarPlusPlus-<version>.zip`。插件不内置第三方安装 payload；在 Steam Deck 上执行安装时会从官方 R2 发布源获取并验证最新版，因此首次使用需要联网。
 
 ### 构建模组
 
