@@ -15,8 +15,9 @@ import time
 import urllib.parse
 import urllib.request
 import zipfile
+from contextlib import asynccontextmanager
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, Iterable
+from typing import Any, AsyncIterator, Callable, Iterable
 
 import decky
 
@@ -615,16 +616,23 @@ class Plugin:
     async def _progress(self, message: str, percent: int) -> None:
         await decky.emit("install_progress", message, percent)
 
-    async def install_latest(self) -> dict[str, Any]:
+    @asynccontextmanager
+    async def _preflight_game_path(
+        self, *, not_found_message: str
+    ) -> AsyncIterator[Path]:
+        """取 operation_lock，完成「路径存在 + 游戏未运行」预检后 yield game_path。"""
         async with self.operation_lock:
             game_path = await asyncio.to_thread(find_game_path)
             if not game_path:
-                raise RuntimeError(
-                    "未找到 Steam 版《The Bazaar》。请先安装并启动一次游戏。"
-                )
+                raise RuntimeError(not_found_message)
             if await asyncio.to_thread(is_game_running):
                 raise RuntimeError("《The Bazaar》仍在运行，请先退出游戏。")
+            yield game_path
 
+    async def install_latest(self) -> dict[str, Any]:
+        async with self._preflight_game_path(
+            not_found_message="未找到 Steam 版《The Bazaar》。请先安装并启动一次游戏。"
+        ) as game_path:
             await self._progress("读取官方发布信息", 5)
             release = await self._get_release()
             await self._progress("准备安全解包工具", 12)
@@ -670,12 +678,9 @@ class Plugin:
             return result
 
     async def uninstall_mod(self) -> dict[str, Any]:
-        async with self.operation_lock:
-            game_path = await asyncio.to_thread(find_game_path)
-            if not game_path:
-                raise RuntimeError("未找到 Steam 版《The Bazaar》。")
-            if await asyncio.to_thread(is_game_running):
-                raise RuntimeError("《The Bazaar》仍在运行，请先退出游戏。")
+        async with self._preflight_game_path(
+            not_found_message="未找到 Steam 版《The Bazaar》。"
+        ) as game_path:
             remove_dependencies = not await asyncio.to_thread(
                 _third_party_plugins, game_path
             )
@@ -687,12 +692,9 @@ class Plugin:
             return await asyncio.to_thread(_status)
 
     async def reset_data(self) -> dict[str, Any]:
-        async with self.operation_lock:
-            game_path = await asyncio.to_thread(find_game_path)
-            if not game_path:
-                raise RuntimeError("未找到 Steam 版《The Bazaar》。")
-            if await asyncio.to_thread(is_game_running):
-                raise RuntimeError("《The Bazaar》仍在运行，请先退出游戏。")
+        async with self._preflight_game_path(
+            not_found_message="未找到 Steam 版《The Bazaar》。"
+        ) as game_path:
             data_path = game_path / DATA_DIRECTORY
             if data_path.is_symlink():
                 raise RuntimeError("拒绝删除符号链接形式的数据目录")

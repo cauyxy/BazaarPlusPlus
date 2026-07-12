@@ -1,3 +1,4 @@
+import asyncio
 import importlib.util
 import io
 import sys
@@ -625,6 +626,59 @@ class InstallTransactionTests(unittest.TestCase):
             (game / "BepInEx/plugins/SomeOtherMod").mkdir(parents=True)
 
             self.assertTrue(backend._third_party_plugins(game))
+
+
+class PreflightGamePathTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.plugin = backend.Plugin()
+        self.plugin.operation_lock = asyncio.Lock()
+
+    async def test_raises_custom_message_when_game_is_not_found(self):
+        with (
+            mock.patch.object(backend, "find_game_path", return_value=None),
+            mock.patch.object(backend, "is_game_running") as is_game_running,
+        ):
+            with self.assertRaises(RuntimeError) as raised:
+                async with self.plugin._preflight_game_path(
+                    not_found_message="自定义未找到文案"
+                ):
+                    self.fail("preflight should not yield without a game path")
+
+        self.assertEqual(str(raised.exception), "自定义未找到文案")
+        is_game_running.assert_not_called()
+        self.assertFalse(self.plugin.operation_lock.locked())
+
+    async def test_raises_when_game_is_running(self):
+        game_path = Path("/game")
+        with (
+            mock.patch.object(backend, "find_game_path", return_value=game_path),
+            mock.patch.object(backend, "is_game_running", return_value=True),
+        ):
+            with self.assertRaises(RuntimeError) as raised:
+                async with self.plugin._preflight_game_path(
+                    not_found_message="未找到"
+                ):
+                    self.fail("preflight should not yield while the game is running")
+
+        self.assertEqual(
+            str(raised.exception), "《The Bazaar》仍在运行，请先退出游戏。"
+        )
+        self.assertFalse(self.plugin.operation_lock.locked())
+
+    async def test_yields_game_path_while_holding_lock(self):
+        game_path = Path("/game")
+        with (
+            mock.patch.object(backend, "find_game_path", return_value=game_path),
+            mock.patch.object(backend, "is_game_running", return_value=False),
+        ):
+            self.assertFalse(self.plugin.operation_lock.locked())
+            async with self.plugin._preflight_game_path(
+                not_found_message="未找到"
+            ) as yielded_path:
+                self.assertEqual(yielded_path, game_path)
+                self.assertTrue(self.plugin.operation_lock.locked())
+
+        self.assertFalse(self.plugin.operation_lock.locked())
 
 
 if __name__ == "__main__":
